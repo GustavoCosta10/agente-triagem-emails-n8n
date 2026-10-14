@@ -1,0 +1,706 @@
+{
+  "name": "Triagem de E-mails",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9aca2a2e-ac15-4077-a9ff-b4d1981853bc",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "jsCode": "const emails = [\n  { id: 1, remetente: \"ana@exemplo.com\", assunto: \"Pedido atrasado\", corpo: \"Fiz o pedido há 10 dias e até agora nada chegou. Estou muito insatisfeita.\" },\n  { id: 2, remetente: \"carlos@exemplo.com\", assunto: \"Horário de atendimento\", corpo: \"Boa tarde, vocês atendem aos sábados?\" },\n  { id: 3, remetente: \"marta@exemplo.com\", assunto: \"Parabéns\", corpo: \"Fui muito bem atendida ontem, o atendente foi excelente!\" },\n  { id: 4, remetente: \"joao@exemplo.com\", assunto: \"Orçamento\", corpo: \"Gostaria de um orçamento para 50 unidades do produto X.\" },\n  { id: 5, remetente: \"promo@spam.com\", assunto: \"GANHE DINHEIRO RÁPIDO\", corpo: \"Clique aqui e ganhe R$5000 em 1 dia!!!\" },\n  { id: 6, remetente: \"paulo@exemplo.com\", assunto: \"URGENTE: cobrança indevida\", corpo: \"Fui cobrado duas vezes no cartão. Preciso de solução hoje ou vou acionar o Procon.\" }\n];\nreturn emails.map(e => ({ json: e }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "6815d6dd-f3d1-469c-80ec-2ec804b39d20",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Classifique o e-mail abaixo.\n\nCategorias possíveis: duvida, reclamacao, elogio, orcamento, spam.\nUrgência: alta = ameaça de ação legal, cobrança indevida ou prazo exigido pelo cliente para hoje; media = problema que precisa de solução, sem prazo crítico; baixa = dúvidas, elogios e spam.\n\nID: {{ $json.id }}\nRemetente: {{ $json.remetente }}\nAssunto: {{ $json.assunto }}\nMensagem: {{ $json.corpo }}\n\nDevolva no campo \"id\" exatamente o mesmo ID recebido.\nResponda só no formato pedido. Em \"resposta_sugerida\", escreva um rascunho curto e educado em português (vazio se for spam).\n\nNunca invente informações como horários, preços, prazos ou políticas da empresa.\nSe a resposta depender de um dado que você não tem, use um marcador como [inserir horário].",
+        "hasOutputParser": true,
+        "batching": {
+          "batchSize": 1,
+          "delayBetweenBatches": 6000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        448,
+        -32
+      ],
+      "id": "e1542e13-91b1-4241-bfe0-68426b7ca60a",
+      "name": "Basic LLM Chain",
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        336,
+        208
+      ],
+      "id": "a94a4350-e1b4-4aab-bbea-b2b596e41360",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "sOZGzvMgKlpfhPed",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"id\": 1,\n  \"categoria\": \"reclamacao\",\n  \"urgencia\": \"alta\",\n  \"resumo\": \"Cliente reclama de pedido atrasado.\",\n  \"resposta_sugerida\": \"Olá! Sentimos muito pelo atraso no seu pedido.\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        592,
+        208
+      ],
+      "id": "2ef0c047-1785-459d-a3f3-995a3ca570cc",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f30e8102-747c-469d-8f70-33f6ce3058a7",
+              "name": "remetente",
+              "value": "={{ $('Code in JavaScript').all().find(e => e.json.id === $json.output.id).json.remetente }}",
+              "type": "string"
+            },
+            {
+              "id": "4770f843-7aee-4aa3-b829-440185c623b2",
+              "name": "assunto",
+              "value": "={{ $('Code in JavaScript').all().find(e => e.json.id === $json.output.id).json.assunto }}",
+              "type": "string"
+            },
+            {
+              "id": "99754613-62ce-46e2-9e31-e91abc417798",
+              "name": "categoria",
+              "value": "={{ $json.output.categoria.trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "5359dd43-5f59-462c-a15a-322d6b6f5437",
+              "name": "urgencia",
+              "value": "={{ $json.output.urgencia.trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "3deba506-a20c-4c1a-b54c-6349112c737c",
+              "name": "resumo",
+              "value": "={{ $json.output.resumo }}",
+              "type": "string"
+            },
+            {
+              "id": "1c465073-6bd7-4135-a06f-edf030ba12aa",
+              "name": "resposta_sugerida",
+              "value": "={{ $json.output.resposta_sugerida }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        864,
+        -64
+      ],
+      "id": "a5801cc8-e557-4a84-b9c3-7494709ba1cb",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "reclamacao",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6cff3f11-ec2b-4f40-9463-5dd4f5e87681"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Reclamação"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "a5c35e3b-ed3f-4386-b736-e85f695fc7bd",
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "duvida",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Dúvida"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "87b6b96b-e306-480f-8338-92920ca44a60",
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "elogio",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Elogio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "92b59a00-b958-4034-8cde-073fd31ac7f0",
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "orcamento",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Orçamento"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "39c1ff65-ed52-49a6-a2b8-a7b0db11063d",
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "spam",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Spam"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1072,
+        -128
+      ],
+      "id": "cf202e9d-86b6-4449-8724-bad72ee8d56f",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "numberInputs": 7
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1840,
+        64
+      ],
+      "id": "bd17e21d-1269-476a-8332-93147754ffb5",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2064,
+        64
+      ],
+      "id": "d74366ad-1f00-492d-b66d-49935f6c3431",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c2d3262b-b493-4315-93d7-7ee613d02791",
+              "name": "acao",
+              "value": "={{ $json.urgencia === 'alta' ? 'ALERTA URGENTE: encaminhar ao suporte agora' : 'Encaminhar ao suporte' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1472,
+        -304
+      ],
+      "id": "48b81df3-5ac9-4e82-a872-75692ca4f176",
+      "name": "Reclamação"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c2d3262b-b493-4315-93d7-7ee613d02791",
+              "name": "acao",
+              "value": "=Rascunho de resposta gerado",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1472,
+        -144
+      ],
+      "id": "0b431e17-5a3e-49db-ba00-e11f9f5367c7",
+      "name": "Dúvida"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c2d3262b-b493-4315-93d7-7ee613d02791",
+              "name": "acao",
+              "value": "=Registrar e encaminhar ao time",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1472,
+        -16
+      ],
+      "id": "76fc6464-8f25-4db7-a972-1b090538e4c9",
+      "name": "Elogio"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c2d3262b-b493-4315-93d7-7ee613d02791",
+              "name": "acao",
+              "value": "=Encaminhar ao comercial",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1456,
+        144
+      ],
+      "id": "dc072a49-720a-4168-8dad-11b446ef68f5",
+      "name": "Orçamento"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c2d3262b-b493-4315-93d7-7ee613d02791",
+              "name": "acao",
+              "value": "=Ignorado",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1456,
+        304
+      ],
+      "id": "e327e30d-d501-4cda-8e81-b9617c10861b",
+      "name": "Spam"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c2d3262b-b493-4315-93d7-7ee613d02791",
+              "name": "acao",
+              "value": "Revisar manualmente",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1456,
+        512
+      ],
+      "id": "95c144f1-b1db-477a-83ac-e6cffa75133d",
+      "name": "Revisar manualmente"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e096fa1d-e346-42f9-b388-06786d46dc55",
+              "name": "categoria",
+              "value": "revisao_manual",
+              "type": "string"
+            },
+            {
+              "id": "e096fa1d-e346-42f9-b388-06786d46dc56",
+              "name": "acao",
+              "value": "Revisar manualmente",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1456,
+        688
+      ],
+      "id": "9cc811f1-cdf3-439e-888a-b3e037e4c873",
+      "name": "erro"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Reclamação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dúvida",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Elogio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Orçamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Spam",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Revisar manualmente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reclamação": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dúvida": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Elogio": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Orçamento": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Spam": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Revisar manualmente": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "erro": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a9db9de5-0b1f-4e18-bea1-3298b28cd083",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d9d7e3f83a75e892ad0e67694005eabc235119f3a17fcbffbd40698958f63f1c"
+  },
+  "nodeGroups": [],
+  "id": "DtOHrTzO7lKczSsF",
+  "tags": []
+}
